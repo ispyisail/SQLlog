@@ -1,0 +1,83 @@
+# Virtual environment
+venv/
+.venv/
+env/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+*.whl
+.eggs/
+
+# Logs
+logs/
+*.log
+
+# Local database cache
+*.db
+*.sqlite
+*.sqlite3
+cache.db
+
+# Configuration with secrets (use .example files as templates)
+config.yaml
+.env
+
+# Build artifacts
+*.spec
+*.exe
+*.msi
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# OS files
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# Test / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Jupyter
+.ipynb_checkpoints/
+
+# PyInstaller
+*.manifest
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Claude Code
+.claude/
+.claudeignore
+CLAUDE.md

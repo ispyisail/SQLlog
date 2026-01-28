@@ -1,0 +1,123 @@
+# SQLlog Configuration
+# Copy this file to config.yaml and update the password
+
+plc:
+  ip: "192.168.50.10"
+  slot: 0
+  poll_interval_ms: 100
+
+  # Handshake tags (create these in PLC)
+  trigger_tag: "SQLlog_Trigger"           # INT: 0=Idle, 1=Request, 2=Ack, 99=Fault
+  heartbeat_tag: "SQLlog_Heartbeat"       # INT: Python increments every 2s
+  error_code_tag: "SQLlog_Error_Code"     # INT: Error code on fault
+
+  # Existing PLC tags for reference
+  existing_trigger: "RECIPE_BITS[0,2].10" # Current Batch_Enable trigger
+  sequence_number: "A_DINT[10]"           # Recipe Sequence Number
+
+  # Recipe data - reads entire UDT at RECIPE[0]
+  recipe_tag: "RECIPE[0]"
+
+  # Additional data tags
+  batch_ratio: "RECIPE_REAL[0,0]"
+  weigh_bin_weight: "RECIPE_DINT[0,91]"
+  recycle_weight: "RECIPE_DINT[0,29]"
+
+sql:
+  # Production database - password comes from .env file
+  # Use ${VAR_NAME} for environment variable substitution
+  connection_string: "Driver={ODBC Driver 18 for SQL Server};Server=SVR\\SQLEXPRESS;Database=EXO_Live;UID=SA;PWD=${SQL_PASSWORD};TrustServerCertificate=yes;"
+  table: "dbo.X_RecipeLog"
+
+  # Timestamp column (set to empty string to disable)
+  timestamp_column: "Manufacture_Date"
+
+  max_retries: 3
+  retry_base_delay_s: 1
+  retry_max_delay_s: 60
+
+# PLC field -> SQL column mappings
+# Note: These are fields within RECIPE[0] UDT
+mappings:
+  # Product info (from RECIPE[0])
+  RECIPE_NUMBER: "Recipe_Number"
+  PRODUCT_NAME1: "Product_Name"
+  PRODUCT_NAME2: "Customer_Note"
+
+  # Bulk ingredient weights (from RECIPE[0])
+  B1_WT: "B001_Weight"
+  B2_WT: "B002_Weight"
+  B3_WT: "B003_Weight"
+  B4_WT: "B004_Weight"
+  B5_WT: "B005_Weight"
+  B6_WT: "B006_Weight"
+  B7_WT: "B007_Weight"
+  B8_WT: "B008_Weight"
+  B9_WT: "B009_Weight"
+
+  # Minor ingredient weights (from RECIPE[0])
+  INGRE_1_WT: "ING001_Weight"
+  INGRE_2_WT: "ING002_Weight"
+  INGRE_3_WT: "ING003_Weight"
+  INGRE_4_WT: "ING004_Weight"
+  INGRE_5_WT: "ING005_Weight"
+  INGRE_6_WT: "ING006_Weight"
+  INGRE_7_WT: "ING007_Weight"
+  INGRE_8_WT: "ING008_Weight"
+  INGRE_9_WT: "ING009_Weight"
+  INGRE_10_WT: "ING010_Weight"
+  INGRE_11_WT: "ING011_Weight"
+  INGRE_12_WT: "ING012_Weight"
+  INGRE_13_WT: "ING013_Weight"
+  INGRE_14_WT: "ING014_Weight"
+  INGRE_15_WT: "ING015_Weight"
+  INGRE_16_WT: "ING016_Weight"
+  INGRE_17_WT: "ING017_Weight"
+  INGRE_18_WT: "ING018_Weight"
+
+  # Special ingredients (from RECIPE[0])
+  MOLASSES_WT: "MOLASSES_Weight"
+  TOTAL_WT: "TOTAL_Weight"
+
+# Additional tags (not in RECIPE[0] UDT)
+extra_tags:
+  sequence_number: "A_DINT[10]"           # -> SEQ_Number
+  batch_ratio: "RECIPE_REAL[0,0]"         # -> BATCH_RATIO
+  recycle_weight: "RECIPE_DINT[0,29]"     # -> RECYCLE_Weight
+
+# Bulk ingredient names come from REC_P_N_B[1..10].Name (SEL_MENU type)
+bulk_names:
+  slot_1: "REC_P_N_B[1].Name"   # -> B001_Name
+  slot_2: "REC_P_N_B[2].Name"   # -> B002_Name
+  slot_3: "REC_P_N_B[3].Name"   # -> B003_Name
+  slot_4: "REC_P_N_B[4].Name"   # -> B004_Name
+  slot_5: "REC_P_N_B[5].Name"   # -> B005_Name
+  slot_6: "REC_P_N_B[6].Name"   # -> B006_Name
+  slot_7: "REC_P_N_B[7].Name"   # -> B007_Name
+  slot_8: "REC_P_N_B[8].Name"   # -> B008_Name
+  slot_9: "REC_P_N_B[9].Name"   # -> B009_Name
+
+validation:
+  limits:
+    TOTAL_WT:
+      min: 0
+      max: 50000
+    RECIPE_NUMBER:
+      min: 1
+      max: 99
+    BATCH_RATIO:
+      min: 0
+      max: 100
+
+logging:
+  directory: "logs"
+  rotation: "10 MB"
+  retention: "30 days"
+  level: "INFO"
+
+heartbeat:
+  interval_s: 2
+
+local_cache:
+  database: "cache.db"
+  sync_interval_s: 30
