@@ -138,6 +138,7 @@ class TrayApp:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("View Logs", self._on_view_logs),
             pystray.MenuItem("Open Log Folder", self._on_open_log_folder),
+            pystray.MenuItem("Clear Logs", self._on_clear_logs),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit Tray", self._on_quit)
         )
@@ -183,6 +184,44 @@ class TrayApp:
             os.startfile(self.log_directory)
         else:
             logger.warning(f"Log directory not found: {self.log_directory}")
+
+    def _on_clear_logs(self, icon, item):
+        """Clear all log files."""
+        logger.info("Clearing log files")
+        cleared = 0
+        try:
+            if self.log_directory.exists():
+                for log_file in self.log_directory.glob("*.log*"):
+                    try:
+                        log_file.unlink()
+                        cleared += 1
+                    except PermissionError:
+                        # File might be in use by service - truncate instead
+                        try:
+                            with open(log_file, "w") as f:
+                                pass  # Truncate to empty
+                            cleared += 1
+                        except Exception:
+                            pass
+                    except Exception as e:
+                        logger.warning(f"Could not clear {log_file}: {e}")
+
+            if cleared > 0:
+                self._show_notification(f"Cleared {cleared} log file(s)")
+            else:
+                self._show_notification("No log files to clear")
+
+        except Exception as e:
+            logger.error(f"Failed to clear logs: {e}")
+            self._show_error(f"Failed to clear logs: {e}")
+
+    def _show_notification(self, message: str):
+        """Show info notification."""
+        try:
+            if self._icon:
+                self._icon.notify(message, "SQLlog")
+        except Exception:
+            pass
 
     def _open_file(self, path: Path):
         """Open a file with default application."""
@@ -238,8 +277,14 @@ def add_to_startup():
         # Running as compiled exe
         exe_path = sys.executable
     else:
-        # Running as script
-        exe_path = f'"{sys.executable}" -m src.tray.tray_app'
+        # Running as script - use pythonw.exe for no console window
+        python_dir = Path(sys.executable).parent
+        pythonw = python_dir / "pythonw.exe"
+        if pythonw.exists():
+            exe_path = f'"{pythonw}" -m src.tray.tray_app'
+        else:
+            # Fallback to python.exe if pythonw not found
+            exe_path = f'"{sys.executable}" -m src.tray.tray_app'
 
     try:
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE)

@@ -104,9 +104,11 @@ if not exist "venv\Scripts\python.exe" (
     echo   For best results, create a venv: python -m venv venv
     echo.
     set PYTHON_EXE=python
+    set PYTHONW_EXE=pythonw
 ) else (
     echo   [OK] Virtual environment found
     set PYTHON_EXE="%CD%\venv\Scripts\python.exe"
+    set PYTHONW_EXE="%CD%\venv\Scripts\pythonw.exe"
 )
 
 echo.
@@ -256,9 +258,16 @@ if not errorlevel 1 (
     echo [WARNING] Could not add tray app to startup. You can add it manually later.
 )
 
-:: Start the tray app now
+:: Kill any existing tray app instances first
+echo Stopping any existing tray instances...
+taskkill /F /IM pythonw.exe /FI "WINDOWTITLE eq SQLlog*" >nul 2>&1
+:: Also try to kill by command line match using wmic
+wmic process where "commandline like '%%src.tray.tray_app%%'" delete >nul 2>&1
+timeout /t 1 /nobreak >nul
+
+:: Start the tray app now (use pythonw.exe for no console window)
 echo Starting system tray app...
-start "" %PYTHON_EXE% -m src.tray.tray_app
+start "" %PYTHONW_EXE% -m src.tray.tray_app
 echo [OK] Tray app started.
 
 echo.
