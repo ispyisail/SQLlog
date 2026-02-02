@@ -16,8 +16,9 @@ from loguru import logger
 
 
 def get_status_file_path() -> Path:
-    """Get the path to the status file in AppData."""
-    appdata = os.environ.get("APPDATA", os.path.expanduser("~"))
+    """Get the path to the status file in the user-specific AppData directory."""
+    # Use LOCALAPPDATA for a user-specific, writable location.
+    appdata = os.environ.get("LOCALAPPDATA", "C:\\Users\\user\\AppData\\Local")
     status_dir = Path(appdata) / "SQLlog"
     status_dir.mkdir(parents=True, exist_ok=True)
     return status_dir / "status.json"
@@ -61,16 +62,29 @@ class StatusWriter:
             self._status["error"] = error
 
     def _write_status(self):
-        """Write current status to file."""
+        """Write current status to file atomically."""
         with self._lock:
             self._status["last_update"] = datetime.now().isoformat()
             status_copy = self._status.copy()
 
+        tmp_path = self._file_path.with_suffix(".json.tmp")
+
         try:
-            with open(self._file_path, "w") as f:
+            # Write to a temporary file first
+            with open(tmp_path, "w") as f:
                 json.dump(status_copy, f, indent=2)
+            
+            # Atomically rename/replace the old file with the new one
+            os.replace(tmp_path, self._file_path)
+
         except Exception as e:
             logger.error(f"Failed to write status file: {e}")
+            # Clean up temp file on error
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except Exception:
+                    pass
 
     def _writer_loop(self):
         """Background thread that periodically writes status."""

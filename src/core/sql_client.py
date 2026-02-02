@@ -117,6 +117,40 @@ class SQLClient:
         logger.error("All SQL insert attempts failed")
         return False
 
+    def find_record_by_field(self, field: str, value: any) -> dict:
+        """
+        Find a single record by a specific field and value.
+
+        Args:
+            field: The SQL column name to search.
+            value: The value to search for.
+
+        Returns:
+            A dictionary representing the record, or None if not found.
+        """
+        try:
+            if not self._ensure_connected():
+                raise ConnectionError("Cannot connect to SQL Server")
+
+            sql = f"SELECT TOP 1 * FROM {self.table} WHERE {field} = ? ORDER BY {self.timestamp_column} DESC"
+            
+            cursor = self._connection.cursor()
+            cursor.execute(sql, value)
+            
+            # Fetch column names
+            columns = [column[0] for column in cursor.description]
+            row = cursor.fetchone()
+            cursor.close()
+
+            if row:
+                return dict(zip(columns, row))
+            return None
+
+        except Exception as e:
+            logger.error(f"SQL find record failed: {e}")
+            self._connected = False
+            return None
+
     def test_connection(self) -> bool:
         """Test if SQL connection is alive."""
         if not self._connected or not self._connection:
