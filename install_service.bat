@@ -26,9 +26,10 @@ if %errorLevel% neq 0 (
     echo.
 
     :: Create a temporary VBScript to request elevation
+    :: Use cmd /k to keep the window open after the script finishes
     set "vbsFile=%temp%\elevate_sqllog.vbs"
     echo Set UAC = CreateObject^("Shell.Application"^) > "!vbsFile!"
-    echo UAC.ShellExecute "%~f0", "", "", "runas", 1 >> "!vbsFile!"
+    echo UAC.ShellExecute "cmd.exe", "/k ""%~f0""", "%~dp0", "runas", 1 >> "!vbsFile!"
 
     :: Run the elevation script
     cscript //nologo "!vbsFile!"
@@ -46,7 +47,7 @@ echo.
 :: ----------------------------------------------------------------------------
 echo Checking Python installation...
 python --version >nul 2>&1
-if %errorLevel% neq 0 (
+if errorlevel 1 (
     echo.
     echo [ERROR] Python is not installed or not in PATH.
     echo.
@@ -115,37 +116,63 @@ echo.
 :: ----------------------------------------------------------------------------
 echo Checking for existing SQLlog service...
 sc query SQLlog >nul 2>&1
-if %errorLevel% equ 0 (
-    echo.
-    echo [INFO] SQLlog service already exists.
-    echo.
+if errorlevel 1 goto :service_not_found
 
-    :: Check if running
-    sc query SQLlog | find "RUNNING" >nul 2>&1
-    if %errorLevel% equ 0 (
-        echo   Service is currently RUNNING.
-        echo   Stopping service before reinstall...
-        sc stop SQLlog >nul 2>&1
-        timeout /t 3 /nobreak >nul
-    )
+echo.
+echo [INFO] SQLlog service already exists.
+echo.
 
-    echo   Removing existing service...
-    sc delete SQLlog >nul 2>&1
-    if %errorLevel% neq 0 (
-        echo.
-        echo [ERROR] Failed to remove existing service.
-        echo.
-        echo SOLUTION:
-        echo   1. Open Services (services.msc)
-        echo   2. Stop the SQLlog service if running
-        echo   3. Try running this installer again
-        echo.
-        goto :failure
-    )
-    echo   [OK] Existing service removed.
-    timeout /t 2 /nobreak >nul
-    echo.
-)
+:: Check if running and stop it
+sc query SQLlog | find "RUNNING" >nul 2>&1
+if errorlevel 1 goto :do_remove
+
+echo   Service is currently RUNNING.
+echo   Stopping service before reinstall...
+sc stop SQLlog >nul 2>&1
+
+:: Wait for service to fully stop (up to 30 seconds)
+echo   Waiting for service to stop...
+set stop_attempts=0
+
+:wait_for_stop
+timeout /t 1 /nobreak >nul
+sc query SQLlog | find "STOPPED" >nul 2>&1
+if not errorlevel 1 goto :service_stopped
+set /a stop_attempts=stop_attempts+1
+if %stop_attempts% lss 30 goto :wait_for_stop
+echo   [WARNING] Service did not stop gracefully after 30 seconds.
+goto :do_remove
+
+:service_stopped
+echo   [OK] Service stopped.
+
+:do_remove
+echo   Removing existing service...
+sc delete SQLlog >nul 2>&1
+if errorlevel 1 goto :remove_failed
+echo   [OK] Existing service removed.
+goto :after_remove
+
+:remove_failed
+echo.
+echo [ERROR] Failed to remove existing service.
+echo.
+echo SOLUTION:
+echo   1. Open Task Manager and end any python.exe processes
+echo   2. Open Services (services.msc) and wait for service to fully stop
+echo   3. Close any windows showing service properties
+echo   4. Try running this installer again
+echo   5. If still failing, reboot and try again
+echo.
+goto :failure
+
+:after_remove
+:: Give Windows time to fully release the service
+echo   Waiting for Windows to release service handle...
+timeout /t 3 /nobreak >nul
+echo.
+
+:service_not_found
 
 :: ----------------------------------------------------------------------------
 :: Install the service
@@ -154,32 +181,35 @@ echo Installing SQLlog service...
 echo.
 
 %PYTHON_EXE% -m src.service install
-if %errorLevel% neq 0 (
-    echo.
-    echo [ERROR] Service installation failed.
-    echo.
-    echo POSSIBLE CAUSES:
-    echo   1. Missing Python dependencies - run: pip install -r requirements.txt
-    echo   2. pywin32 not installed - run: pip install pywin32
-    echo   3. Permission denied - ensure you're running as Administrator
-    echo.
-    echo For detailed error information, check:
-    echo   - logs\service_error.log
-    echo   - Windows Event Viewer (Application log)
-    echo.
-    goto :failure
-)
-
+if errorlevel 1 goto :install_failed
 echo.
 echo [OK] Service installed successfully.
 echo.
+goto :configure_recovery
+
+:install_failed
+echo.
+echo [ERROR] Service installation failed.
+echo.
+echo POSSIBLE CAUSES:
+echo   1. Missing Python dependencies - run: pip install -r requirements.txt
+echo   2. pywin32 not installed - run: pip install pywin32
+echo   3. Permission denied - ensure you're running as Administrator
+echo.
+echo For detailed error information, check:
+echo   - logs\service_error.log
+echo   - Windows Event Viewer (Application log)
+echo.
+goto :failure
+
+:configure_recovery
 
 :: ----------------------------------------------------------------------------
 :: Configure service recovery options
 :: ----------------------------------------------------------------------------
 echo Configuring service recovery options...
 sc failure SQLlog reset= 86400 actions= restart/60000/restart/60000/restart/60000 >nul 2>&1
-if %errorLevel% equ 0 (
+if not errorlevel 1 (
     echo [OK] Service will auto-restart on failure.
 ) else (
     echo [WARNING] Could not configure recovery options.
@@ -191,7 +221,7 @@ echo.
 :: ----------------------------------------------------------------------------
 echo Starting SQLlog service...
 sc start SQLlog >nul 2>&1
-if %errorLevel% neq 0 (
+if errorlevel 1 (
     echo.
     echo [WARNING] Service installed but failed to start.
     echo.
@@ -206,12 +236,30 @@ if %errorLevel% neq 0 (
 ) else (
     timeout /t 2 /nobreak >nul
     sc query SQLlog | find "RUNNING" >nul 2>&1
-    if %errorLevel% equ 0 (
+    if not errorlevel 1 (
         echo [OK] Service is now RUNNING.
     ) else (
         echo [WARNING] Service may have failed to start. Check logs.
     )
 )
+
+echo.
+
+:: ----------------------------------------------------------------------------
+:: Install tray app to Windows startup
+:: ----------------------------------------------------------------------------
+echo Installing system tray app to Windows startup...
+%PYTHON_EXE% -m src.tray.tray_app --add-startup >nul 2>&1
+if not errorlevel 1 (
+    echo [OK] Tray app added to Windows startup.
+) else (
+    echo [WARNING] Could not add tray app to startup. You can add it manually later.
+)
+
+:: Start the tray app now
+echo Starting system tray app...
+start "" %PYTHON_EXE% -m src.tray.tray_app
+echo [OK] Tray app started.
 
 echo.
 
@@ -226,6 +274,7 @@ echo.
 echo Service Name:    SQLlog
 echo Display Name:    SQLlog PLC Data Logger
 echo Startup Type:    Automatic (starts on boot)
+echo Tray App:        Added to Windows startup
 echo.
 echo USEFUL COMMANDS:
 echo   sc start SQLlog     - Start the service
@@ -235,9 +284,6 @@ echo.
 echo LOG LOCATIONS:
 echo   %CD%\logs\
 echo   %LOCALAPPDATA%\SQLlog\status.json
-echo.
-echo To add the system tray monitor (optional):
-echo   python -m src.tray.tray_app --add-startup
 echo.
 echo ============================================================
 echo.

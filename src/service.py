@@ -155,19 +155,20 @@ def install_service():
                     command_line,
                     None, 0, None, None, None
                 )
-                
+
                 # Set the service description (not available in CreateService)
                 win32service.ChangeServiceConfig2(hs, win32service.SERVICE_CONFIG_DESCRIPTION, SQLlogService._svc_description_)
-                
+
                 win32service.CloseServiceHandle(hs)
-                
+
                 print(f"Service '{SQLlogService._svc_name_}' installed successfully.")
                 print(f" -> PathName: {command_line}")
+                sys.exit(0)
             finally:
                 win32service.CloseServiceHandle(hscm)
         except Exception as e:
             print(f"Error installing service: {e}")
-            # Consider raising or logging here if needed
+            sys.exit(1)
     else:
         # For 'remove', 'start', etc., the default handler is still fine.
         win32serviceutil.HandleCommandLine(SQLlogService)

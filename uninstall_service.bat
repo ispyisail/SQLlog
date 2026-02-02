@@ -24,9 +24,10 @@ if %errorLevel% neq 0 (
     echo Requesting elevation...
     echo.
 
+    :: Use cmd /k to keep the window open after the script finishes
     set "vbsFile=%temp%\elevate_sqllog_uninstall.vbs"
     echo Set UAC = CreateObject^("Shell.Application"^) > "!vbsFile!"
-    echo UAC.ShellExecute "%~f0", "", "", "runas", 1 >> "!vbsFile!"
+    echo UAC.ShellExecute "cmd.exe", "/k ""%~f0""", "%~dp0", "runas", 1 >> "!vbsFile!"
 
     cscript //nologo "!vbsFile!"
     del "!vbsFile!" >nul 2>&1
