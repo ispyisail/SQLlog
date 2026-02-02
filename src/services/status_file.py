@@ -125,7 +125,13 @@ class StatusReader:
                 return {"status": "not_running", "plc_connected": False, "sql_connected": False}
 
             with open(self._file_path, "r") as f:
-                status = json.load(f)
+                content = f.read()
+
+            # Handle empty file (race condition during write)
+            if not content.strip():
+                return {"status": "checking", "plc_connected": False, "sql_connected": False}
+
+            status = json.loads(content)
 
             # Check if status is stale (more than 5 seconds old)
             last_update = status.get("last_update")
@@ -139,6 +145,9 @@ class StatusReader:
 
             return status
 
+        except json.JSONDecodeError:
+            # File being written - transient state, don't log error
+            return {"status": "checking", "plc_connected": False, "sql_connected": False}
         except Exception as e:
             logger.error(f"Failed to read status file: {e}")
             return {"status": "error", "plc_connected": False, "sql_connected": False, "error": str(e)}
