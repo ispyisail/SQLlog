@@ -22,6 +22,9 @@ dist/
 logs/
 *.log
 
+# Runtime data (status file for tray app)
+data/
+
 # Local database cache
 *.db
 *.sqlite

@@ -16,10 +16,15 @@ from loguru import logger
 
 
 def get_status_file_path() -> Path:
-    """Get the path to the status file in the user-specific AppData directory."""
-    # Use LOCALAPPDATA for a user-specific, writable location.
-    appdata = os.environ.get("LOCALAPPDATA", "C:\\Users\\user\\AppData\\Local")
-    status_dir = Path(appdata) / "SQLlog"
+    """Get the path to the status file.
+
+    Uses the project directory for reliable access by both the service
+    (running as SYSTEM) and the tray app (running as user).
+    """
+    # Use project directory - both service and tray can access this
+    # This is more reliable than LOCALAPPDATA which differs between SYSTEM and user
+    project_dir = Path(__file__).parent.parent.parent.resolve()
+    status_dir = project_dir / "data"
     status_dir.mkdir(parents=True, exist_ok=True)
     return status_dir / "status.json"
 
@@ -62,29 +67,27 @@ class StatusWriter:
             self._status["error"] = error
 
     def _write_status(self):
-        """Write current status to file atomically."""
+        """Write current status to file.
+
+        Uses direct write instead of atomic rename because Windows file
+        locking can cause os.replace() to fail when another process
+        (like the tray app) has the file open for reading.
+        """
         with self._lock:
             self._status["last_update"] = datetime.now().isoformat()
             status_copy = self._status.copy()
 
-        tmp_path = self._file_path.with_suffix(".json.tmp")
-
         try:
-            # Write to a temporary file first
-            with open(tmp_path, "w") as f:
+            # Write directly to the file - Windows handles concurrent reads
+            with open(self._file_path, "w") as f:
                 json.dump(status_copy, f, indent=2)
-            
-            # Atomically rename/replace the old file with the new one
-            os.replace(tmp_path, self._file_path)
 
+        except PermissionError:
+            # File might be locked by tray app reading it - skip this update
+            # The next update will succeed when the lock is released
+            pass
         except Exception as e:
             logger.error(f"Failed to write status file: {e}")
-            # Clean up temp file on error
-            if tmp_path.exists():
-                try:
-                    tmp_path.unlink()
-                except Exception:
-                    pass
 
     def _writer_loop(self):
         """Background thread that periodically writes status."""

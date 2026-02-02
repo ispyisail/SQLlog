@@ -283,7 +283,7 @@ echo   sc query SQLlog     - Check service status
 echo.
 echo LOG LOCATIONS:
 echo   %CD%\logs\
-echo   %LOCALAPPDATA%\SQLlog\status.json
+echo   %CD%\data\status.json
 echo.
 echo ============================================================
 echo.
