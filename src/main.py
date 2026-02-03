@@ -87,8 +87,9 @@ class SQLlogApp:
         """Build extra tag to SQL column mappings from config."""
         mappings = {}
 
-        # Map extra_tags to SQL columns
-        extra_tags = self.config.get("extra_tags", {})
+        # Map extra_tags to SQL columns (extra_tags is inside plc section)
+        plc_config = self.config.get("plc", {})
+        extra_tags = plc_config.get("extra_tags", {})
         if "sequence_number" in extra_tags:
             mappings["sequence_number"] = "SEQ_Number"
         if "batch_ratio" in extra_tags:
@@ -97,7 +98,7 @@ class SQLlogApp:
             mappings["recycle_weight"] = "RECYCLE_Weight"
 
         # Map bulk_names to SQL columns
-        bulk_names = self.config.get("bulk_names", {})
+        bulk_names = plc_config.get("bulk_names", {})
         for i in range(1, 10):
             key = f"slot_{i}"
             if key in bulk_names:
